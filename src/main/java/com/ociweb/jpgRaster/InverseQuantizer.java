@@ -78,10 +78,11 @@ public class InverseQuantizer extends PronghornStage {
 				header.startOfSelection = (short) PipeReader.readInt(input, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_STARTOFSELECTION_601);
 				header.endOfSelection = (short) PipeReader.readInt(input, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_ENDOFSELECTION_701);
 				header.successiveApproximation = (short) PipeReader.readInt(input, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_SUCCESSIVEAPPROXIMATION_801);
+				PipeReader.releaseReadLock(input);
 
 				// write header to pipe
 				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_HEADERMESSAGE_1)) {
-					System.out.println("Inverse Quantizer writing header to pipe...");
+					System.out.println("Writing header to pipe...");
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_HEIGHT_101, header.height);
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_WIDTH_201, header.width);
 					PipeWriter.writeASCII(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_FILENAME_301, filename);
@@ -90,11 +91,12 @@ public class InverseQuantizer extends PronghornStage {
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_STARTOFSELECTION_601, header.startOfSelection);
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_ENDOFSELECTION_701, header.endOfSelection);
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_SUCCESSIVEAPPROXIMATION_801, header.successiveApproximation);
+					PipeWriter.publishWrites(output);
 				}
 				else {
+					System.err.println("Inverse Quantizer requesting shutdown");
 					requestShutdown();
 				}
-				PipeWriter.publishWrites(output);
 			}
 			else if (msgIdx == JPGSchema.MSG_COLORCOMPONENTMESSAGE_2) {
 				// read color component data from pipe
@@ -106,22 +108,24 @@ public class InverseQuantizer extends PronghornStage {
 				component.huffmanACTableID = (short) PipeReader.readInt(input, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HUFFMANACTABLEID_502);
 				component.huffmanDCTableID = (short) PipeReader.readInt(input, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HUFFMANDCTABLEID_602);
 				header.colorComponents.add(component);
+				PipeReader.releaseReadLock(input);
 				
 				// write color component data to pipe
 				System.out.println("Attempting to write color component to pipe...");
 				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2)) {
-					System.out.println("Inverse Quantizer writing color component to pipe...");
+					System.out.println("Writing color component to pipe...");
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_COMPONENTID_102, component.componentID);
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HORIZONTALSAMPLINGFACTOR_202, component.horizontalSamplingFactor);
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_VERTICALSAMPLINGFACTOR_302, component.verticalSamplingFactor);
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_QUANTIZATIONTABLEID_402, component.quantizationTableID);
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HUFFMANACTABLEID_502, component.huffmanACTableID);
 					PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HUFFMANDCTABLEID_602, component.huffmanDCTableID);
+					PipeWriter.publishWrites(output);
 				}
 				else {
+					System.err.println("Inverse Quantizer requesting shutdown");
 					requestShutdown();
 				}
-				PipeWriter.publishWrites(output);
 			}
 			else if (msgIdx == JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5) {
 				// read quantization table from pipe
@@ -130,6 +134,7 @@ public class InverseQuantizer extends PronghornStage {
 				table.precision = (short) PipeReader.readInt(input, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_PRECISION_205);
 				ByteBuffer buffer = ByteBuffer.allocate(64 * 4);
 				PipeReader.readBytes(input, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_TABLE_305, buffer);
+				PipeReader.releaseReadLock(input);
 				buffer.position(0);
 				for (int i = 0; i < 64; ++i) {
 					table.table[i] = buffer.getInt();
@@ -137,7 +142,6 @@ public class InverseQuantizer extends PronghornStage {
 				header.quantizationTables.add(table);
 			}
 			else if (msgIdx == JPGSchema.MSG_MCUMESSAGE_6) {
-				System.out.println("Quantizer receiving MCU message");
 				MCU mcu = new MCU();
 				ByteBuffer yBuffer = ByteBuffer.allocate(64 * 2);
 				ByteBuffer cbBuffer = ByteBuffer.allocate(64 * 2);
@@ -145,32 +149,42 @@ public class InverseQuantizer extends PronghornStage {
 				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_Y_106, yBuffer);
 				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CB_206, cbBuffer);
 				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CR_306, crBuffer);
-				dequantize(mcu, header);
-				
-				ByteBuffer yBuffer2 = ByteBuffer.allocate(64 * 2);
-				ByteBuffer cbBuffer2 = ByteBuffer.allocate(64 * 2);
-				ByteBuffer crBuffer2 = ByteBuffer.allocate(64 * 2);
+				PipeReader.releaseReadLock(input);
+				yBuffer.position(0);
+				cbBuffer.position(0);
+				crBuffer.position(0);
 				for (int i = 0; i < 64; ++i) {
-					yBuffer2.putShort(mcu.y[i]);
-					cbBuffer2.putShort(mcu.cb[i]);
-					crBuffer2.putShort(mcu.cr[i]);
+					mcu.y[i] = yBuffer.getShort();
+					mcu.cb[i] = cbBuffer.getShort();
+					mcu.cr[i] = crBuffer.getShort();
 				}
-				yBuffer2.position(0);
-				cbBuffer2.position(0);
-				crBuffer2.position(0);
-				if(PipeWriter.tryWriteFragment(output,  JPGSchema.MSG_MCUMESSAGE_6)) {
+				
+				dequantize(mcu, header);
+
+				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_MCUMESSAGE_6)) {
+					ByteBuffer yBuffer2 = ByteBuffer.allocate(64 * 2);
+					ByteBuffer cbBuffer2 = ByteBuffer.allocate(64 * 2);
+					ByteBuffer crBuffer2 = ByteBuffer.allocate(64 * 2);
+					for (int i = 0; i < 64; ++i) {
+						yBuffer2.putShort(mcu.y[i]);
+						cbBuffer2.putShort(mcu.cb[i]);
+						crBuffer2.putShort(mcu.cr[i]);
+					}
+					yBuffer2.position(0);
+					cbBuffer2.position(0);
+					crBuffer2.position(0);
 					PipeWriter.writeBytes(output, JPGSchema.MSG_MCUMESSAGE_6_FIELD_Y_106, yBuffer2);
 					PipeWriter.writeBytes(output, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CB_206, cbBuffer2);
 					PipeWriter.writeBytes(output, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CR_306, crBuffer2);
 					PipeWriter.publishWrites(output);
 				}
 				else {
+					System.err.println("Inverse Quantizer requesting shutdown");
 					requestShutdown();
 				}
-				
-				System.out.println("Quantizer exit after writing mcu");
 			}
 			else {
+				System.err.println("Inverse Quantizer requesting shutdown");
 				requestShutdown();
 			}
 		}
