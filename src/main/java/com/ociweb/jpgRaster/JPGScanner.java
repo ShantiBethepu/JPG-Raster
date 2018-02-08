@@ -45,95 +45,120 @@ public class JPGScanner extends PronghornStage {
 		current = (short)f.readUnsignedByte();
 		
 		while (true) {
-			if (header.valid == false) {
+			if (!header.valid) {
 				break;
 			}
-			
 			if (last == 0xFF) {
-				if      (current == JPGConstants.DQT) {
-					ReadQuantizationTable(f, header);
-				}
-				else if (current == JPGConstants.SOF0) {
-					header.frameType = "Baseline";
-					ReadStartOfFrame(f, header);
-				}
-				// only Baseline is supported for now
-				/*else if (current == JPGConstants.SOF1) {
-					header.frameType = "Extended Sequential";
-					ReadStartOfFrame(f, header);
-				}
-				else if (current == JPGConstants.SOF2) {
-					header.frameType = "Progressive";
-					ReadStartOfFrame(f, header);
-				}
-				else if (current == JPGConstants.SOF3) {
-					header.frameType = "Lossless";
-					ReadStartOfFrame(f, header);
-				}*/
-				else if (current == JPGConstants.DHT) {
-					ReadHuffmanTable(f, header);
-				}
-				else if (current == JPGConstants.SOS) {
-					ReadStartOfScan(f, header);
-					break;
-				}
-				else if (current == JPGConstants.DRI) {
-					ReadRestartInterval(f, header);
-				}
-				else if (current >= JPGConstants.RST0 && current <= JPGConstants.RST7) {
-					ReadRSTN(f, header);
-				}
-				else if (current >= JPGConstants.APP0 && current <= JPGConstants.APP15) {
-					ReadAPPN(f, header);
-				}
-				else if (current == JPGConstants.COM) {
-					ReadComment(f, header);
-				}
-				else if (current == 0xFF) {
-					// skip
-					current = (short)f.readUnsignedByte();
-					continue;
-				}
-				else if (current == JPGConstants.JPG0 ||
-						 current == JPGConstants.JPG13 ||
-						 current == JPGConstants.DNL ||
-						 current == JPGConstants.DHP ||
-						 current == JPGConstants.EXP) {
-					// unsupported segments that can be skipped
-					ReadComment(f, header);
-				}
-				else if (current == JPGConstants.TEM) {
-					// unsupported segment with no size
-				}
-				else if (current == JPGConstants.SOI) {
-					System.err.println("Error - This JPG contains an embedded JPG; This is not supported");
-					header.valid = false;
-					f.close();
-					return header;
-				}
-				else if (current == JPGConstants.EOI) {
-					System.err.println("Error - EOI detected before SOS");
-					header.valid = false;
-					f.close();
-					return header;
-				}
-				else if (current == JPGConstants.DAC) {
-					System.err.println("Error - Arithmetic Table mode is not supported");
-					header.valid = false;
-					f.close();
-					return header;
-				}
-				else if (current >= JPGConstants.SOF0 && current <= JPGConstants.SOF15) {
-					System.err.println("Error - This Start of Frame marker is not supported: " + String.format("0x%2x", current));
-					header.valid = false;
-					f.close();
-					return header;
-				}
-				else {
-					System.err.println("Error - Unknown Marker: " + String.format("0x%2x", current));
-					header.valid = false;
-					f.close();
-					return header;
+				switch (current) {
+					case JPGConstants.DQT:
+						ReadQuantizationTable(f, header);
+						break;
+					case JPGConstants.SOF0:
+						header.frameType = "Baseline";
+						ReadStartOfFrame(f, header);
+						break;
+					// Only Baseline is supported for now
+					/*
+					case JPGConstants.SOF1:
+						// header.frameType = "Extended Sequential"
+						ReadStartOfFrame(f, header);
+						break;
+					case JPGConstants.SOF2:
+						// header.frameType = "Progressive"
+						ReadStartOfFrame(f, header);
+						break;
+					case JPGConstants.SOF3:
+						// header.frameType = "Lossless";
+						ReadStartOfFrame(f, header);
+						break;*/
+					case JPGConstants.DHT:
+						ReadHuffmanTable(f, header);
+						break;
+					case JPGConstants.SOS:
+						ReadStartOfScan(f, header);
+						break;
+					case JPGConstants.DRI:
+						ReadRestartInterval(f, header);
+						break;
+					case JPGConstants.RST0:
+					case JPGConstants.RST1:
+					case JPGConstants.RST2:
+					case JPGConstants.RST3:
+					case JPGConstants.RST4:
+					case JPGConstants.RST5:
+					case JPGConstants.RST6:
+					case JPGConstants.RST7:
+						ReadRSTN(f, header);
+						break;
+					case JPGConstants.APP0:
+					case JPGConstants.APP1:
+					case JPGConstants.APP2:
+					case JPGConstants.APP3:
+					case JPGConstants.APP4:
+					case JPGConstants.APP5:
+					case JPGConstants.APP6:
+					case JPGConstants.APP7:
+					case JPGConstants.APP8:
+					case JPGConstants.APP9:
+					case JPGConstants.APP10:
+					case JPGConstants.APP11:
+					case JPGConstants.APP12:
+					case JPGConstants.APP13:
+					case JPGConstants.APP14:
+					case JPGConstants.APP15:
+						ReadAPPN(f, header);
+						break;
+					case JPGConstants.COM:
+						ReadComment(f, header);
+						break;
+					case 0xFF:
+						// skip
+						current = (short)f.readUnsignedByte();
+						continue;
+					case JPGConstants.JPG0:
+					case JPGConstants.JPG13:
+					case JPGConstants.DNL:
+					case JPGConstants.DHP:
+					case JPGConstants.EXP:
+						// unsupported segments that can be skipped
+						ReadComment(f, header);
+						break;
+					case JPGConstants.TEM:
+						// unsupported segment with no size
+						break;
+					case JPGConstants.SOI:
+						System.err.println("Error - This JPG contains an embedded JPG; This is not supported");
+						header.valid = false;
+						f.close();
+						return header;
+					case JPGConstants.EOI:
+						System.err.println("Error - EOI detected before SOS");
+						header.valid = false;
+						f.close();
+						return header;
+					case JPGConstants.DAC:
+						System.err.println("Error - Arithmetic Table mode is not supported");
+						header.valid = false;
+						f.close();
+						return header;
+					case JPGConstants.SOF5:
+					case JPGConstants.SOF6:
+					case JPGConstants.SOF7:
+					case JPGConstants.SOF9:
+					case JPGConstants.SOF10:
+					case JPGConstants.SOF11:
+					case JPGConstants.SOF13:
+					case JPGConstants.SOF14:
+					case JPGConstants.SOF15:
+						System.err.println("Error - This Start of Frame marker is not supported: " + String.format("0x%2x", current));
+						header.valid = false;
+						f.close();
+						return header;
+					default:
+						System.err.println("Error - Unknown Marker: " + String.format("0x%2x", current));
+						header.valid = false;
+						f.close();
+						return header;
 				}
 			}
 			else { //if (last != 0xFF) {

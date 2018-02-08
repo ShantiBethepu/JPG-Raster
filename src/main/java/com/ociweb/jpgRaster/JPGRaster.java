@@ -11,7 +11,7 @@ public class JPGRaster {
 	public static void main(String[] args) {
 //		String defaultFiles = "test_jpgs/car test_jpgs/cat test_jpgs/dice test_jpgs/earth test_jpgs/nathan test_jpgs/pyramids test_jpgs/robot test_jpgs/squirrel test_jpgs/static test_jpgs/turtle";
 //		String defaultFiles = "test_jpgs/car";
-		String defaultFiles = "test_jpgs/huff_simple0.jpg test_jpgs/robot.jpg test_jpgs/cat.jpg test_jpgs/car.jpg test_jpgs/squirrel.jpg test_jpgs/nathan.jpg test_jpgs/earth.jpg test_jpgs/dice.jpg test_jpgs/pyramids.jpg test_jpgs/static.jpg test_jpgs/turtle.jpg";
+		String defaultFiles = "test_jpgs/huff_simple0.jpg test_jpgs/robot.jpg test_jpgs/cat.jpg test_jpgs/car.jpg test_jpgs/squirrel.jpg test_jpgs/nathan.jpg test_jpgs/earth.jpg test_jpgs/dice.jpg test_jpgs/pyramids.jpg test_jpgs/static.jpg";
 		String inputFilePaths = MainArgs.getOptArg("fileName", "-f", args, defaultFiles);
 		String[] inputFiles = inputFilePaths.split(" ");
 		
@@ -81,11 +81,11 @@ public class JPGRaster {
 		Pipe<JPGSchema> pipe5 = JPGSchema.instance.newPipe(60000, 192);
 		
 		JPGScanner scanner = new JPGScanner(gm, pipe1);
-//		new HuffmanDecoder(gm, pipe1, pipe2);
-		new InverseQuantizer(gm, pipe1, pipe2);
-		new InverseDCT(gm, pipe2, pipe3);
-		new YCbCrToRGB(gm, pipe3, pipe4);
-		new BMPDumper(gm, pipe4);
+		new HuffmanDecoder(gm, pipe1, pipe2);
+		new InverseQuantizer(gm, pipe2, pipe3);
+		new InverseDCT(gm, pipe3, pipe4);
+		new YCbCrToRGB(gm, pipe4, pipe5);
+		new BMPDumper(gm, pipe5, System.nanoTime());
 		
 //		new ConsoleJSONDumpStage<JPGSchema>(gm, pipe4);
 		
@@ -97,5 +97,6 @@ public class JPGRaster {
 			scanner.queueFile(file);
 		}
 	}
+	
 
 }
