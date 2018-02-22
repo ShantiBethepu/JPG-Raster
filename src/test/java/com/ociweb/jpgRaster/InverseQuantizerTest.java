@@ -2,26 +2,22 @@ package com.ociweb.jpgRaster;
 
 import static org.junit.Assert.assertTrue;
 
-import com.ociweb.pronghorn.pipe.Pipe;
-import com.ociweb.pronghorn.stage.scheduling.GraphManager;
+import java.util.Random;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-
 public class InverseQuantizerTest {
-    JPG.QuantizationTable qTable0;
-    JPG.QuantizationTable qTable1;
+    JPG.Header header;
 
     @Before
-    public void setupQuantizationTable() {
+    public void initializeHeader() {
         // These tables are obtained from running djpeg on jpeg_test.jpg
         // from the test_jpeg folder.
-        qTable0 = new JPG.QuantizationTable();
-        qTable0.tableID = 0;
-        qTable0.precision = 0;
-        qTable0.table = new int[]{
+        JPG.QuantizationTable qTable;
+        qTable = new JPG.QuantizationTable();
+        qTable.tableID = 0;
+        qTable.precision = 0;
+        qTable.table = new int[]{
                 2, 1, 1, 2, 3, 5, 6, 7,
                 1, 1, 2, 2, 3, 7, 7, 7,
                 2, 2, 2, 3, 5, 7, 8, 7,
@@ -31,11 +27,11 @@ public class InverseQuantizerTest {
                 6, 8, 9, 10, 12, 15, 14, 12,
                 9, 11, 11, 12, 13, 12, 12, 12
         };
-
-        qTable1 = new JPG.QuantizationTable();
-        qTable1.tableID = 1;
-        qTable1.precision = 0;
-        qTable1.table = new int[]{
+        header.quantizationTables.add(qTable);
+        qTable = new JPG.QuantizationTable();
+        qTable.tableID = 1;
+        qTable.precision = 0;
+        qTable.table = new int[]{
                 2, 2, 3, 6, 12, 12, 12, 12,
                 2, 3, 3, 8, 12, 12, 12, 12,
                 3, 3, 7, 12, 12, 12, 12, 12,
@@ -45,39 +41,76 @@ public class InverseQuantizerTest {
                 12, 12, 12, 12, 12, 12, 12, 12,
                 12, 12, 12, 12, 12, 12, 12, 12
         };
+        header.quantizationTables.add(qTable);
+        // Setup Color Components
+        JPG.ColorComponent colorComponent;
+        colorComponent = new JPG.ColorComponent();
+        colorComponent.quantizationTableID = 0;
+        header.colorComponents.set(0, colorComponent);
+        colorComponent = new JPG.ColorComponent();
+        colorComponent.quantizationTableID = 1;
+        header.colorComponents.set(1, colorComponent);
+        colorComponent = new JPG.ColorComponent();
+        colorComponent.quantizationTableID = 1;
+        header.colorComponents.set(2, colorComponent);
     }
 
     @Test
-    public void dequantizeMCUTest() throws NoSuchMethodException {
-        GraphManager graphManager = new GraphManager();
-        Pipe<JPGSchema> inputPipe = JPGSchema.instance.newPipe(10, 100_000);
-        Pipe<JPGSchema> outputPipe = JPGSchema.instance.newPipe(10, 100_000);
-
-        InverseQuantizer inverseQuantizer = new InverseQuantizer(
-                graphManager, inputPipe, outputPipe
-        );
-        Method method = InverseQuantizer.class.getDeclaredMethod(
-                "dequantizeMCU",
-                short[].class,
-                JPG.QuantizationTable.class
-        );
-        method.setAccessible(true);
+    public void zeroDequantizeTest() {
+        JPG.MCU inputmcu;
+        JPG.MCU outputmcu;
+        // Initialize input MCU
+        inputmcu = new JPG.MCU();
+        for (int i = 0; i < 64; i++) {
+            inputmcu.y[i] = 0;
+            inputmcu.cb[i] = 0;
+            inputmcu.cr[i] = 0;
+        }
+        // Initialize output MCU
+        outputmcu = new JPG.MCU();
+        for (int i = 0; i < 64; i++) {
+            outputmcu.y[i] = inputmcu.y[i];
+            outputmcu.cb[i] = inputmcu.cb[i];
+            outputmcu.cr[i] = inputmcu.cr[i];
+        }
+        // Call function
+        InverseQuantizer.dequantize(outputmcu, header);
+        // Check output MCU against expected result
+        for (int i = 0; i < 64; i++) {
+            assertTrue(outputmcu.y[i] == (inputmcu.y[i] * header.quantizationTables.get(0).table[i]));
+            assertTrue(outputmcu.cb[i] == (inputmcu.cb[i] * header.quantizationTables.get(1).table[i]));
+            assertTrue(outputmcu.cr[i] == (inputmcu.cr[i] * header.quantizationTables.get(1).table[i]));
+        }
     }
 
     @Test
-    public void dequantizeTest() {
-//        JPG.MCU mcu;
-//        JPG.Header header;
-//        // Initialize MCU
-//        mcu = new JPG.MCU();
-//        for (int i = 0; i < 64; i++) {
-//            mcu.y[i] = 0;
-//            mcu.cb[i] = 0;
-//            mcu.cr[i] = 0;
-//        }
-//        // Initialize Header
-//        header = new JPG.Header();
-//        header.colorComponents.set(0, JPG.ColorComponent);
-//        InverseQuantizer.dequantize(mcu, header);
+    public void randomDequantizeTest() {
+        Random rand;
+        JPG.MCU inputmcu;
+        JPG.MCU outputmcu;
+        // Initialize Random
+        rand = new Random();
+        // Initialize input MCU
+        inputmcu = new JPG.MCU();
+        for (int i = 0; i < 64; i++) {
+            inputmcu.y[i] = (short) rand.nextInt();
+            inputmcu.cb[i] = (short) rand.nextInt();
+            inputmcu.cr[i] = (short) rand.nextInt();
+        }
+        // Initialize output MCU
+        outputmcu = new JPG.MCU();
+        for (int i = 0; i < 64; i++) {
+            outputmcu.y[i] = (short) rand.nextInt();
+            outputmcu.cb[i] = (short) rand.nextInt();
+            outputmcu.cr[i] = (short) rand.nextInt();
+        }
+        // Call function
+        InverseQuantizer.dequantize(outputmcu, header);
+        // Check output MCU against expected result
+        for (int i = 0; i < 64; i++) {
+            assertTrue(outputmcu.y[i] == (inputmcu.y[i] * header.quantizationTables.get(0).table[i]));
+            assertTrue(outputmcu.cb[i] == (inputmcu.cb[i] * header.quantizationTables.get(1).table[i]));
+            assertTrue(outputmcu.cr[i] == (inputmcu.cr[i] * header.quantizationTables.get(1).table[i]));
+        }
     }
 }
