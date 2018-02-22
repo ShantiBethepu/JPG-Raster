@@ -9,9 +9,7 @@ import com.ociweb.pronghorn.util.MainArgs;
 public class JPGRaster {
 
 	public static void main(String[] args) {
-//		String defaultFiles = "test_jpgs/car test_jpgs/cat test_jpgs/dice test_jpgs/earth test_jpgs/nathan test_jpgs/pyramids test_jpgs/robot test_jpgs/squirrel test_jpgs/static test_jpgs/turtle";
-//		String defaultFiles = "test_jpgs/car";
-		String defaultFiles = "test_jpgs/huff_simple0.jpg test_jpgs/robot.jpg test_jpgs/cat.jpg test_jpgs/car.jpg test_jpgs/squirrel.jpg test_jpgs/nathan.jpg test_jpgs/earth.jpg test_jpgs/dice.jpg test_jpgs/pyramids.jpg test_jpgs/static.jpg";
+		String defaultFiles = "test_jpgs/huff_simple0 test_jpgs/robot test_jpgs/cat test_jpgs/car test_jpgs/squirrel test_jpgs/nathan test_jpgs/earth test_jpgs/dice test_jpgs/pyramids test_jpgs/static test_jpgs/turtle";
 		String inputFilePaths = MainArgs.getOptArg("fileName", "-f", args, defaultFiles);
 		String[] inputFiles = inputFilePaths.split(" ");
 		
@@ -55,37 +53,23 @@ public class JPGRaster {
 
 	private static void populateGraph(GraphManager gm, String[] inputFiles) {
 				
-		/*Pipe<RawDataSchema> pipe1  = RawDataSchema.instance.newPipe(10, 10_000); // 10 chunks each 10K in  size
-		Pipe<RawDataSchema> pipe1A = RawDataSchema.instance.newPipe(20, 20_000); // 10 chunks each 10K in  size
-		Pipe<RawDataSchema> pipe1B = RawDataSchema.instance.newPipe(20, 20_000); // 10 chunks each 10K in  size
-		
-		
-		new FileBlobReadStage(gm, pipe1, inputFilePath); // This stage reads a file
-		
-		
-		// This stage replicates the data to two pipes, great for debugging while passing on the real data.
-		new ReplicatorStage<>(gm, pipe1, pipe1A, pipe1B); 
-		
-		new ConsoleJSONDumpStage<>(gm, pipe1A); // see all the data at the console.
-		//new ConsoleSummaryStage<>(gm, pipe1A); // dumps just a count of messages periodically
-		
+		/*		
 		new PipeCleanerStage<>(gm, pipe1B); // dumps all data which came in 
 		
-		//new FileBlobWriteStage(gm, pipe1B, false, ".\targetFile.dat"); // write byte data to disk
+		new FileBlobWriteStage(gm, pipe1B, false, ".\targetFile.dat"); // write byte data to disk
 		*/
 		
-		Pipe<JPGSchema> pipe1 = JPGSchema.instance.newPipe(12, 2500_000);
-		Pipe<JPGSchema> pipe2 = JPGSchema.instance.newPipe(60000, 192);
-		Pipe<JPGSchema> pipe3 = JPGSchema.instance.newPipe(60000, 192);
-		Pipe<JPGSchema> pipe4 = JPGSchema.instance.newPipe(60000, 192);
-		Pipe<JPGSchema> pipe5 = JPGSchema.instance.newPipe(60000, 192);
+		// pipe1 should be the same size as the others, but it mysteriously fills up faster (shouldn't be the case)
+		Pipe<JPGSchema> pipe1 = JPGSchema.instance.newPipe(500, 200);
+		Pipe<JPGSchema> pipe2 = JPGSchema.instance.newPipe(500, 200);
+		Pipe<JPGSchema> pipe3 = JPGSchema.instance.newPipe(500, 200);
+		Pipe<JPGSchema> pipe4 = JPGSchema.instance.newPipe(500, 200);
 		
 		JPGScanner scanner = new JPGScanner(gm, pipe1);
-		new HuffmanDecoder(gm, pipe1, pipe2);
-		new InverseQuantizer(gm, pipe2, pipe3);
-		new InverseDCT(gm, pipe3, pipe4);
-		new YCbCrToRGB(gm, pipe4, pipe5);
-		new BMPDumper(gm, pipe5, System.nanoTime());
+		new InverseQuantizer(gm, pipe1, pipe2);
+		new InverseDCT(gm, pipe2, pipe3);
+		new YCbCrToRGB(gm, pipe3, pipe4);
+		new BMPDumper(gm, pipe4, System.nanoTime());
 		
 //		new ConsoleJSONDumpStage<JPGSchema>(gm, pipe4);
 		
@@ -97,6 +81,5 @@ public class JPGRaster {
 			scanner.queueFile(file);
 		}
 	}
-	
 
 }

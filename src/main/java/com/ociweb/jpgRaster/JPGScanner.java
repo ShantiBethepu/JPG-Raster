@@ -4,15 +4,16 @@ import com.ociweb.jpgRaster.JPG.Header;
 import com.ociweb.jpgRaster.JPG.ColorComponent;
 import com.ociweb.jpgRaster.JPG.QuantizationTable;
 import com.ociweb.jpgRaster.JPG.HuffmanTable;
+import com.ociweb.jpgRaster.JPG.MCU;
 import com.ociweb.pronghorn.pipe.Pipe;
 import com.ociweb.pronghorn.pipe.PipeWriter;
+import com.ociweb.pronghorn.pipe.DataOutputBlobWriter;
 import com.ociweb.pronghorn.stage.PronghornStage;
 import com.ociweb.pronghorn.stage.scheduling.GraphManager;
 
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.io.FileNotFoundException;
 import java.io.EOFException;
 import java.util.ArrayList;
@@ -22,6 +23,10 @@ public class JPGScanner extends PronghornStage {
 	private ArrayList<String> inputFiles = new ArrayList<String>();
 	private final Pipe<JPGSchema> output;
 	
+	int numMCUs = 0;
+	int numProcessed = 0;
+	
+	MCU mcu = new MCU();
 	
 	protected JPGScanner(GraphManager graphManager, Pipe<JPGSchema> output) {
 		super(graphManager, NONE, output);
@@ -45,120 +50,95 @@ public class JPGScanner extends PronghornStage {
 		current = (short)f.readUnsignedByte();
 		
 		while (true) {
-			if (!header.valid) {
+			if (header.valid == false) {
 				break;
 			}
+			
 			if (last == 0xFF) {
-				switch (current) {
-					case JPGConstants.DQT:
-						ReadQuantizationTable(f, header);
-						break;
-					case JPGConstants.SOF0:
-						header.frameType = "Baseline";
-						ReadStartOfFrame(f, header);
-						break;
-					// Only Baseline is supported for now
-					/*
-					case JPGConstants.SOF1:
-						// header.frameType = "Extended Sequential"
-						ReadStartOfFrame(f, header);
-						break;
-					case JPGConstants.SOF2:
-						// header.frameType = "Progressive"
-						ReadStartOfFrame(f, header);
-						break;
-					case JPGConstants.SOF3:
-						// header.frameType = "Lossless";
-						ReadStartOfFrame(f, header);
-						break;*/
-					case JPGConstants.DHT:
-						ReadHuffmanTable(f, header);
-						break;
-					case JPGConstants.SOS:
-						ReadStartOfScan(f, header);
-						break;
-					case JPGConstants.DRI:
-						ReadRestartInterval(f, header);
-						break;
-					case JPGConstants.RST0:
-					case JPGConstants.RST1:
-					case JPGConstants.RST2:
-					case JPGConstants.RST3:
-					case JPGConstants.RST4:
-					case JPGConstants.RST5:
-					case JPGConstants.RST6:
-					case JPGConstants.RST7:
-						ReadRSTN(f, header);
-						break;
-					case JPGConstants.APP0:
-					case JPGConstants.APP1:
-					case JPGConstants.APP2:
-					case JPGConstants.APP3:
-					case JPGConstants.APP4:
-					case JPGConstants.APP5:
-					case JPGConstants.APP6:
-					case JPGConstants.APP7:
-					case JPGConstants.APP8:
-					case JPGConstants.APP9:
-					case JPGConstants.APP10:
-					case JPGConstants.APP11:
-					case JPGConstants.APP12:
-					case JPGConstants.APP13:
-					case JPGConstants.APP14:
-					case JPGConstants.APP15:
-						ReadAPPN(f, header);
-						break;
-					case JPGConstants.COM:
-						ReadComment(f, header);
-						break;
-					case 0xFF:
-						// skip
-						current = (short)f.readUnsignedByte();
-						continue;
-					case JPGConstants.JPG0:
-					case JPGConstants.JPG13:
-					case JPGConstants.DNL:
-					case JPGConstants.DHP:
-					case JPGConstants.EXP:
-						// unsupported segments that can be skipped
-						ReadComment(f, header);
-						break;
-					case JPGConstants.TEM:
-						// unsupported segment with no size
-						break;
-					case JPGConstants.SOI:
-						System.err.println("Error - This JPG contains an embedded JPG; This is not supported");
-						header.valid = false;
-						f.close();
-						return header;
-					case JPGConstants.EOI:
-						System.err.println("Error - EOI detected before SOS");
-						header.valid = false;
-						f.close();
-						return header;
-					case JPGConstants.DAC:
-						System.err.println("Error - Arithmetic Table mode is not supported");
-						header.valid = false;
-						f.close();
-						return header;
-					case JPGConstants.SOF5:
-					case JPGConstants.SOF6:
-					case JPGConstants.SOF7:
-					case JPGConstants.SOF9:
-					case JPGConstants.SOF10:
-					case JPGConstants.SOF11:
-					case JPGConstants.SOF13:
-					case JPGConstants.SOF14:
-					case JPGConstants.SOF15:
-						System.err.println("Error - This Start of Frame marker is not supported: " + String.format("0x%2x", current));
-						header.valid = false;
-						f.close();
-						return header;
-					default:
-						System.err.println("Error - Unknown Marker: " + String.format("0x%2x", current));
-						header.valid = false;
-						f.close();
-						return header;
+				if      (current == JPGConstants.DQT) {
+					ReadQuantizationTable(f, header);
+				}
+				else if (current == JPGConstants.SOF0) {
+					header.frameType = "Baseline";
+					ReadStartOfFrame(f, header);
+				}
+				// only Baseline is supported for now
+				/*else if (current == JPGConstants.SOF1) {
+					header.frameType = "Extended Sequential";
+					ReadStartOfFrame(f, header);
+				}
+				else if (current == JPGConstants.SOF2) {
+					header.frameType = "Progressive";
+					ReadStartOfFrame(f, header);
+				}
+				else if (current == JPGConstants.SOF3) {
+					header.frameType = "Lossless";
+					ReadStartOfFrame(f, header);
+				}*/
+				else if (current == JPGConstants.DHT) {
+					ReadHuffmanTable(f, header);
+				}
+				else if (current == JPGConstants.SOS) {
+					ReadStartOfScan(f, header);
+					break;
+				}
+				else if (current == JPGConstants.DRI) {
+					ReadRestartInterval(f, header);
+				}
+				else if (current >= JPGConstants.RST0 && current <= JPGConstants.RST7) {
+					ReadRSTN(f, header);
+				}
+				else if (current >= JPGConstants.APP0 && current <= JPGConstants.APP15) {
+					ReadAPPN(f, header);
+				}
+				else if (current == JPGConstants.COM) {
+					ReadComment(f, header);
+				}
+				else if (current == 0xFF) {
+					// skip
+					current = (short)f.readUnsignedByte();
+					continue;
+				}
+				else if (current == JPGConstants.JPG0 ||
+						 current == JPGConstants.JPG13 ||
+						 current == JPGConstants.DNL ||
+						 current == JPGConstants.DHP ||
+						 current == JPGConstants.EXP) {
+					// unsupported segments that can be skipped
+					ReadComment(f, header);
+				}
+				else if (current == JPGConstants.TEM) {
+					// unsupported segment with no size
+				}
+				else if (current == JPGConstants.SOI) {
+					System.err.println("Error - This JPG contains an embedded JPG; This is not supported");
+					header.valid = false;
+					f.close();
+					return header;
+				}
+				else if (current == JPGConstants.EOI) {
+					System.err.println("Error - EOI detected before SOS");
+					header.valid = false;
+					f.close();
+					return header;
+				}
+				else if (current == JPGConstants.DAC) {
+					System.err.println("Error - Arithmetic Table mode is not supported");
+					header.valid = false;
+					f.close();
+					return header;
+				}
+				else if (current >= JPGConstants.SOF0 && current <= JPGConstants.SOF15) {
+					System.err.println("Error - This Start of Frame marker is not supported: " + String.format("0x%2x", current));
+					header.valid = false;
+					f.close();
+					return header;
+				}
+				else {
+					System.err.println("Error - Unknown Marker: " + String.format("0x%2x", current));
+					header.valid = false;
+					f.close();
+					return header;
 				}
 			}
 			else { //if (last != 0xFF) {
@@ -336,7 +316,7 @@ public class JPGScanner extends PronghornStage {
 			HuffmanTable table = new HuffmanTable();
 			short info = (short)f.readUnsignedByte();
 			table.tableID = (short)(info & 0x0F);
-			Boolean ACTable = (info & 0xF0) != 0;
+			boolean ACTable = (info & 0xF0) != 0;
 			
 			if (table.tableID > 1) {
 				System.err.println("Error - Invalid Huffman table ID: " + table.tableID);
@@ -404,7 +384,7 @@ public class JPGScanner extends PronghornStage {
 				return;
 			}
 			
-			Boolean found = false;
+			boolean found = false;
 			for (int j = 0; j < header.colorComponents.size(); ++j) {
 				if (componentID == header.colorComponents.get(j).componentID) {
 					header.colorComponents.get(j).huffmanACTableID = huffmanACTableID;
@@ -481,7 +461,42 @@ public class JPGScanner extends PronghornStage {
 
 	@Override
 	public void run() {
-		if (!inputFiles.isEmpty() && PipeWriter.hasRoomForWrite(output)) {
+		while (PipeWriter.hasRoomForWrite(output) && numProcessed < numMCUs) {
+			if (HuffmanDecoder.decodeHuffmanData(mcu)) {
+				// write mcu to pipe
+				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_MCUMESSAGE_6)) {
+					DataOutputBlobWriter<JPGSchema> mcuWriter = PipeWriter.outputStream(output);
+					DataOutputBlobWriter.openField(mcuWriter);
+					for (int i = 0; i < 64; ++i) {
+						mcuWriter.writeShort(mcu.y[i]);
+					}
+					DataOutputBlobWriter.closeHighLevelField(mcuWriter, JPGSchema.MSG_MCUMESSAGE_6_FIELD_Y_106);
+					
+					DataOutputBlobWriter.openField(mcuWriter);
+					for (int i = 0; i < 64; ++i) {
+						mcuWriter.writeShort(mcu.cb[i]);
+					}
+					DataOutputBlobWriter.closeHighLevelField(mcuWriter, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CB_206);
+					
+					DataOutputBlobWriter.openField(mcuWriter);
+					for (int i = 0; i < 64; ++i) {
+						mcuWriter.writeShort(mcu.cr[i]);
+					}
+					DataOutputBlobWriter.closeHighLevelField(mcuWriter, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CR_306);
+					PipeWriter.publishWrites(output);
+					
+					numProcessed += 1;
+				}
+				else {
+					System.err.println("Requesting shutdown");
+					requestShutdown();
+				}
+			}
+			else {
+				break; // should never happen
+			}
+		}
+		if (PipeWriter.hasRoomForWrite(output) && !inputFiles.isEmpty()) {
 			String file = inputFiles.get(0);
 			inputFiles.remove(0);
 			try {
@@ -492,7 +507,7 @@ public class JPGScanner extends PronghornStage {
 				}
 				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_HEADERMESSAGE_1)) {
 					// write header to pipe
-					System.out.println("Writing header to pipe...");
+					System.out.println("Scanner writing header to pipe...");
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_HEIGHT_101, header.height);
 					PipeWriter.writeInt(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_WIDTH_201, header.width);
 					PipeWriter.writeASCII(output, JPGSchema.MSG_HEADERMESSAGE_1_FIELD_FILENAME_301, file);
@@ -511,7 +526,7 @@ public class JPGScanner extends PronghornStage {
 				for (int i = 0; i < header.colorComponents.size(); ++i) {
 					System.out.println("Attempting to write color component to pipe...");
 					if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2)) {
-						System.out.println("Writing color component to pipe...");
+						System.out.println("Scanner writing color component to pipe...");
 						PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_COMPONENTID_102, header.colorComponents.get(i).componentID);
 						PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_HORIZONTALSAMPLINGFACTOR_202, header.colorComponents.get(i).horizontalSamplingFactor);
 						PipeWriter.writeInt(output, JPGSchema.MSG_COLORCOMPONENTMESSAGE_2_FIELD_VERTICALSAMPLINGFACTOR_302, header.colorComponents.get(i).verticalSamplingFactor);
@@ -525,78 +540,27 @@ public class JPGScanner extends PronghornStage {
 						requestShutdown();
 					}
 				}
-				// write huffman tables to pipe
-				for (int i = 0; i < header.huffmanDCTables.size(); ++i) {
-					System.out.println("Attempting to write huffman table to pipe...");
-					if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4)) {
-						System.out.println("Writing huffman table to pipe...");
-						PipeWriter.writeInt(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_TABLEID_104, header.huffmanDCTables.get(i).tableID);
-						int tableSize = 0;
-						ByteBuffer lengthsBuffer = ByteBuffer.allocate(16 * 2);
-						for (int j = 0; j < header.huffmanDCTables.get(i).symbols.size(); ++j) {
-							int size = header.huffmanDCTables.get(i).symbols.get(j).size();
-							tableSize += size;
-							lengthsBuffer.putShort((short)size);
-						}
-						lengthsBuffer.position(0);
-						PipeWriter.writeBytes(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_LENGTHS_204, lengthsBuffer);
-						ByteBuffer buffer = ByteBuffer.allocate(tableSize * 2);
-						for (int j = 0; j < header.huffmanDCTables.get(i).symbols.size(); ++j) {
-							for (int k = 0; k < header.huffmanDCTables.get(i).symbols.get(j).size(); ++k) {
-								buffer.putShort(header.huffmanDCTables.get(i).symbols.get(j).get(k));
-							}
-						}
-						buffer.position(0);
-						PipeWriter.writeBytes(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_TABLE_304, buffer);
-						PipeWriter.publishWrites(output);
-					}
-					else {
-						System.err.println("Requesting shutdown");
-						requestShutdown();
-					}
-				}
-				for (int i = 0; i < header.huffmanACTables.size(); ++i) {
-					System.out.println("Attempting to write huffman table to pipe...");
-					if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4)) {
-						System.out.println("Writing huffman table to pipe...");
-						PipeWriter.writeInt(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_TABLEID_104, header.huffmanACTables.get(i).tableID + 2);
-						int tableSize = 0;
-						ByteBuffer lengthsBuffer = ByteBuffer.allocate(16 * 2);
-						for (int j = 0; j < header.huffmanACTables.get(i).symbols.size(); ++j) {
-							int size = header.huffmanACTables.get(i).symbols.get(j).size();
-							tableSize += size;
-							lengthsBuffer.putShort((short)size);
-						}
-						lengthsBuffer.position(0);
-						PipeWriter.writeBytes(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_LENGTHS_204, lengthsBuffer);
-						ByteBuffer buffer = ByteBuffer.allocate(tableSize * 2);
-						for (int j = 0; j < header.huffmanACTables.get(i).symbols.size(); ++j) {
-							for (int k = 0; k < header.huffmanACTables.get(i).symbols.get(j).size(); ++k) {
-								buffer.putShort(header.huffmanACTables.get(i).symbols.get(j).get(k));
-							}
-						}
-						buffer.position(0);
-						PipeWriter.writeBytes(output, JPGSchema.MSG_HUFFMANTABLEMESSAGE_4_FIELD_TABLE_304, buffer);
-						PipeWriter.publishWrites(output);
-					}
-					else {
-						System.err.println("Requesting shutdown");
-						requestShutdown();
-					}
-				}
 				// write quantization tables to pipe
 				for (int i = 0; i < header.quantizationTables.size(); ++i) {
 					System.out.println("Attempting to write quantization table to pipe...");
 					if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5)) {
-						System.out.println("Writing quantization table to pipe...");
-						PipeWriter.writeInt(output, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_TABLEID_105, header.quantizationTables.get(i).tableID);
-						PipeWriter.writeInt(output, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_PRECISION_205, header.quantizationTables.get(i).precision);
-						ByteBuffer buffer = ByteBuffer.allocate(64 * 4);
+						System.out.println("Scanner writing quantization table to pipe...");
+
+						DataOutputBlobWriter<JPGSchema> quantizationTableWriter = PipeWriter.outputStream(output);
+						DataOutputBlobWriter.openField(quantizationTableWriter);
+						quantizationTableWriter.writeInt(header.quantizationTables.get(i).tableID);
+						DataOutputBlobWriter.closeHighLevelField(quantizationTableWriter, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_TABLEID_105);
+						
+						DataOutputBlobWriter.openField(quantizationTableWriter);
+						quantizationTableWriter.writeInt(header.quantizationTables.get(i).precision);
+						DataOutputBlobWriter.closeHighLevelField(quantizationTableWriter, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_PRECISION_205);
+						
+						DataOutputBlobWriter.openField(quantizationTableWriter);
 						for (int j = 0; j < 64; ++j) {
-							buffer.putInt(header.quantizationTables.get(i).table[j]);
+							quantizationTableWriter.writeInt(header.quantizationTables.get(i).table[j]);
 						}
-						buffer.position(0);
-						PipeWriter.writeBytes(output, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_TABLE_305, buffer);
+						DataOutputBlobWriter.closeHighLevelField(quantizationTableWriter, JPGSchema.MSG_QUANTIZATIONTABLEMESSAGE_5_FIELD_TABLE_305);
+						
 						PipeWriter.publishWrites(output);
 					}
 					else {
@@ -604,23 +568,9 @@ public class JPGScanner extends PronghornStage {
 						requestShutdown();
 					}
 				}
-				System.out.println("Attempting to write compressed data to pipe...");
-				if (PipeWriter.tryWriteFragment(output, JPGSchema.MSG_COMPRESSEDDATAMESSAGE_3)) {
-					System.out.println("Writing compressed data to pipe...");
-					// write compressed image data to pipe
-					PipeWriter.writeInt(output, JPGSchema.MSG_COMPRESSEDDATAMESSAGE_3_FIELD_LENGTH_103, header.imageData.size());
-					ByteBuffer buffer = ByteBuffer.allocate(header.imageData.size() * 2);
-					for (int i = 0; i < header.imageData.size(); ++i) {
-						buffer.putShort(header.imageData.get(i));
-					}
-					buffer.position(0);
-					PipeWriter.writeBytes(output, JPGSchema.MSG_COMPRESSEDDATAMESSAGE_3_FIELD_DATA_203, buffer);
-					PipeWriter.publishWrites(output);
-				}
-				else {
-					System.err.println("Requesting shutdown");
-					requestShutdown();
-				}
+				HuffmanDecoder.beginDecode(header);
+				numMCUs = ((header.width + 7) / 8) * ((header.height + 7) / 8);
+				numProcessed = 0;
 			}
 			catch (IOException e) {
 				System.err.println("Error - Unknown error reading " + file);

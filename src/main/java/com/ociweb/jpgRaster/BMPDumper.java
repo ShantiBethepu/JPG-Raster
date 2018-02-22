@@ -2,15 +2,16 @@ package com.ociweb.jpgRaster;
 
 import com.ociweb.jpgRaster.JPG.Header;
 import com.ociweb.jpgRaster.JPG.MCU;
+import com.ociweb.pronghorn.pipe.DataInputBlobReader;
 import com.ociweb.pronghorn.pipe.Pipe;
 import com.ociweb.pronghorn.pipe.PipeReader;
 import com.ociweb.pronghorn.stage.PronghornStage;
 import com.ociweb.pronghorn.stage.scheduling.GraphManager;
 
-import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 public class BMPDumper extends PronghornStage {
 
@@ -18,15 +19,16 @@ public class BMPDumper extends PronghornStage {
 	
 	Header header;
 	String filename;
+	MCU mcu = new MCU();
 	
 	short[][] pixels;
 	int count;
 	int mcuHeight;
 	int mcuWidth;
 	int numMCUs;
-
+	
 	long time;
-
+	
 	protected BMPDumper(GraphManager graphManager, Pipe<JPGSchema> input, long time) {
 		super(graphManager, input, NONE);
 		this.input = input;
@@ -39,47 +41,56 @@ public class BMPDumper extends PronghornStage {
 		int paddingSize = (4 - (width * 3) % 4) % 4;
 		int size = 14 + 12 + pixels.length * pixels[0].length + height * paddingSize;
 		
-		DataOutputStream file = new DataOutputStream(new FileOutputStream(filename.toString()));
-		file.writeByte('B');
-		file.writeByte('M');
-		writeInt(file, size);
-		writeInt(file, 0);
-		writeInt(file, 0x1A);
-		writeInt(file, 12);
-		writeShort(file, width);
-		writeShort(file, height);
-		writeShort(file, 1);
-		writeShort(file, 24);
+		FileOutputStream fileStream = new FileOutputStream(filename);
+		FileChannel file = fileStream.getChannel();
+		
+		ByteBuffer buffer = ByteBuffer.allocate(size);
+		buffer.put((byte) 'B');
+		buffer.put((byte) 'M');
+		putInt(buffer, size);
+		putInt(buffer, 0);
+		putInt(buffer, 0x1A);
+		putInt(buffer, 12);
+		putShort(buffer, width);
+		putShort(buffer, height);
+		putShort(buffer, 1);
+		putShort(buffer, 24);
+		
 		for (int i = height - 1; i >= 0; --i) {
 			for (int j = 0; j < width * 3 - 2; j += 3) {
-				file.writeByte(pixels[i][j + 2]);
-				file.writeByte(pixels[i][j + 1]);
-				file.writeByte(pixels[i][j + 0]);
+				buffer.put((byte)(pixels[i][j + 2] & 0xFF));
+				buffer.put((byte)(pixels[i][j + 1] & 0xFF));
+				buffer.put((byte)(pixels[i][j + 0] & 0xFF));
 			}
 			for (int j = 0; j < paddingSize; j++) {
-				file.writeByte(0);
+				buffer.put((byte)0);
 			}
 		}
+		buffer.flip();
+		while(buffer.hasRemaining()) {
+			file.write(buffer);
+		}
 		file.close();
+		fileStream.close();
 
-		if (filename.equals("test_jpgs/static.bmp")) {
+		if (filename.equals("test_jpgs/turtle.bmp")) {
 			long end = System.nanoTime();
-
+			
 			double duration = (double)(end - time) / 1000000;
 			System.out.println("Time in milliseconds: " + duration);
 		}
 	}
 	
-	private static void writeInt(DataOutputStream stream, int v) throws IOException {
-		stream.writeByte((v & 0x000000FF));
-		stream.writeByte((v & 0x0000FF00) >>  8);
-		stream.writeByte((v & 0x00FF0000) >> 16);
-		stream.writeByte((v & 0xFF000000) >> 24);
+	private static void putInt(ByteBuffer buffer, int v) throws IOException {
+		buffer.put((byte)(v & 0xFF));
+		buffer.put((byte)((v >> 8) & 0xFF));
+		buffer.put((byte)((v >> 16) & 0xFF));
+		buffer.put((byte)((v >> 24) & 0xFF));
 	}
 	
-	private static void writeShort(DataOutputStream stream, int v) throws IOException {
-		stream.writeByte((v & 0x00FF));
-		stream.writeByte((v & 0xFF00) >>  8);
+	private static void putShort(ByteBuffer buffer, int v) throws IOException {
+		buffer.put((byte)(v & 0xFF));
+		buffer.put((byte)((v >> 8) & 0xFF));
 	}
 
 	@Override
@@ -109,22 +120,19 @@ public class BMPDumper extends PronghornStage {
 				numMCUs = mcuHeight * mcuWidth;
 			}
 			else if (msgIdx == JPGSchema.MSG_MCUMESSAGE_6) {
-				MCU mcu = new MCU();
-				ByteBuffer yBuffer = ByteBuffer.allocate(64 * 2);
-				ByteBuffer cbBuffer = ByteBuffer.allocate(64 * 2);
-				ByteBuffer crBuffer = ByteBuffer.allocate(64 * 2);
-				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_Y_106, yBuffer);
-				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CB_206, cbBuffer);
-				PipeReader.readBytes(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_CR_306, crBuffer);
-				PipeReader.releaseReadLock(input);
-				yBuffer.position(0);
-				cbBuffer.position(0);
-				crBuffer.position(0);
+				DataInputBlobReader<JPGSchema> mcuReader = PipeReader.inputStream(input, JPGSchema.MSG_MCUMESSAGE_6_FIELD_Y_106);
 				for (int i = 0; i < 64; ++i) {
-					mcu.y[i] = yBuffer.getShort();
-					mcu.cb[i] = cbBuffer.getShort();
-					mcu.cr[i] = crBuffer.getShort();
+					mcu.y[i] = mcuReader.readShort();
 				}
+				
+				for (int i = 0; i < 64; ++i) {
+					mcu.cb[i] = mcuReader.readShort();
+				}
+				
+				for (int i = 0; i < 64; ++i) {
+					mcu.cr[i] = mcuReader.readShort();
+				}
+				PipeReader.releaseReadLock(input);
 
 				int curPixelY = (count / mcuWidth) * 8;
 				int curPixelX = (count % mcuWidth) * 8;
@@ -144,6 +152,7 @@ public class BMPDumper extends PronghornStage {
 					try {
 						System.out.println("Writing pixels to BMP file...");
 						Dump(pixels, filename + ".bmp", time);
+						System.out.println("Done.");
 					}
 					catch (IOException e) {
 						throw new RuntimeException(e);
