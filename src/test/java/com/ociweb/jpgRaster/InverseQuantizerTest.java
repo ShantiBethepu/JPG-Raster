@@ -7,7 +7,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class InverseQuantizerTest {
-    JPG.Header header;
+    private JPG.Header header;
 
     @Before
     public void initializeHeader() {
