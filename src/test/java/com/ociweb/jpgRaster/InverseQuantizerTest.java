@@ -27,6 +27,7 @@ public class InverseQuantizerTest {
                 6, 8, 9, 10, 12, 15, 14, 12,
                 9, 11, 11, 12, 13, 12, 12, 12
         };
+        header = new JPG.Header();
         header.quantizationTables.add(qTable);
         qTable = new JPG.QuantizationTable();
         qTable.tableID = 1;
@@ -46,13 +47,13 @@ public class InverseQuantizerTest {
         JPG.ColorComponent colorComponent;
         colorComponent = new JPG.ColorComponent();
         colorComponent.quantizationTableID = 0;
-        header.colorComponents.set(0, colorComponent);
+        header.colorComponents.add(colorComponent);
         colorComponent = new JPG.ColorComponent();
         colorComponent.quantizationTableID = 1;
-        header.colorComponents.set(1, colorComponent);
+        header.colorComponents.add(colorComponent);
         colorComponent = new JPG.ColorComponent();
         colorComponent.quantizationTableID = 1;
-        header.colorComponents.set(2, colorComponent);
+        header.colorComponents.add(colorComponent);
     }
 
     @Test
@@ -93,16 +94,16 @@ public class InverseQuantizerTest {
         // Initialize input MCU
         inputmcu = new JPG.MCU();
         for (int i = 0; i < 64; i++) {
-            inputmcu.y[i] = (short) rand.nextInt();
-            inputmcu.cb[i] = (short) rand.nextInt();
-            inputmcu.cr[i] = (short) rand.nextInt();
+            inputmcu.y[i] = (short) rand.nextInt(256);
+            inputmcu.cb[i] = (short) rand.nextInt(256);
+            inputmcu.cr[i] = (short) rand.nextInt(256);
         }
         // Initialize output MCU
         outputmcu = new JPG.MCU();
         for (int i = 0; i < 64; i++) {
-            outputmcu.y[i] = (short) rand.nextInt();
-            outputmcu.cb[i] = (short) rand.nextInt();
-            outputmcu.cr[i] = (short) rand.nextInt();
+            outputmcu.y[i] = inputmcu.y[i];
+            outputmcu.cb[i] = inputmcu.cb[i];
+            outputmcu.cr[i] = inputmcu.cr[i];
         }
         // Call function
         InverseQuantizer.dequantize(outputmcu, header);
