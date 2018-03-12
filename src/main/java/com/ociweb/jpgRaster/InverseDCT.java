@@ -20,10 +20,13 @@ public class InverseDCT extends PronghornStage {
 	MCU mcu = new MCU();
 	static short[] result = new short[64];
 	
+	long time;
+	
 	protected InverseDCT(GraphManager graphManager, Pipe<JPGSchema> input, Pipe<JPGSchema> output) {
 		super(graphManager, input, output);
 		this.input = input;
 		this.output = output;
+		this.time = 0;
 	}
 	
 	private static double[] idctMap = new double[64];
@@ -71,6 +74,7 @@ public class InverseDCT extends PronghornStage {
 
 	@Override
 	public void run() {
+		long start = System.nanoTime();
 		while (PipeWriter.hasRoomForWrite(output) && PipeReader.tryReadFragment(input)) {
 			
 			int msgIdx = PipeReader.getMsgIdx(input);
@@ -184,6 +188,8 @@ public class InverseDCT extends PronghornStage {
 				requestShutdown();
 			}
 		}
+		long end = System.nanoTime();
+		time = time + end - start;
 	}
 	
 	/*public static void main(String[] args) {

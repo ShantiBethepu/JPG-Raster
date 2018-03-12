@@ -21,6 +21,11 @@ public class BMPDumper extends PronghornStage {
 	String filename;
 	MCU mcu = new MCU();
 	
+	JPGScanner scanner;
+	InverseQuantizer inverseQuantizer;
+	InverseDCT inverseDCT;
+	YCbCrToRGB yCbCr;
+	
 	short[][] pixels;
 	int count;
 	int mcuHeight;
@@ -29,13 +34,19 @@ public class BMPDumper extends PronghornStage {
 	
 	long time;
 	
-	protected BMPDumper(GraphManager graphManager, Pipe<JPGSchema> input, long time) {
+	protected BMPDumper(GraphManager graphManager, Pipe<JPGSchema> input, long time,
+			JPGScanner scanner, InverseQuantizer inverseQuantizer, InverseDCT inverseDCT, YCbCrToRGB yCbCr) {
 		super(graphManager, input, NONE);
 		this.input = input;
-		this.time = time;
+		this.time = 0;
+		this.scanner = scanner;
+		this.inverseQuantizer = inverseQuantizer;
+		this.inverseDCT = inverseDCT;
+		this.yCbCr = yCbCr;
 	}
 
-	public static void Dump(short[][] pixels, String filename, long time) throws IOException {
+	public static void Dump(short[][] pixels, String filename, long time,
+			JPGScanner scanner, InverseQuantizer inverseQuantizer, InverseDCT inverseDCT, YCbCrToRGB yCbCr) throws IOException {
 		int width = pixels[0].length / 3;
 		int height = pixels.length;
 		int paddingSize = (4 - (width * 3) % 4) % 4;
@@ -72,12 +83,12 @@ public class BMPDumper extends PronghornStage {
 		}
 		file.close();
 		fileStream.close();
-
 		if (filename.equals("test_jpgs/turtle.bmp")) {
-			long end = System.nanoTime();
-			
-			double duration = (double)(end - time) / 1000000;
-			System.out.println("Time in milliseconds: " + duration);
+			System.out.println("(Scanner) Time in milliseconds: " + (double)(scanner.time) / 1000000);
+			System.out.println("(InverseQuantizer) Time in milliseconds: " + (double)(inverseQuantizer.time) / 1000000);
+			System.out.println("(InverseDCT) Time in milliseconds: " + (double)(inverseDCT.time) / 1000000);
+			System.out.println("(YCbCrToRGB) Time in milliseconds: " + (double)(yCbCr.time) / 1000000);
+			System.out.println("(BMPDumper) Time in milliseconds: " + (double)(time) / 1000000);
 		}
 	}
 	
@@ -95,7 +106,7 @@ public class BMPDumper extends PronghornStage {
 
 	@Override
 	public void run() {
-		
+		long start = System.nanoTime();
 		while (PipeReader.tryReadFragment(input)) {
 			
 			int msgIdx = PipeReader.getMsgIdx(input);
@@ -151,7 +162,7 @@ public class BMPDumper extends PronghornStage {
 				if (count >= numMCUs) {
 					try {
 						System.out.println("Writing pixels to BMP file...");
-						Dump(pixels, filename + ".bmp", time);
+						Dump(pixels, filename + ".bmp", time,  scanner, inverseQuantizer, inverseDCT, yCbCr);
 						System.out.println("Done.");
 					}
 					catch (IOException e) {
@@ -164,7 +175,8 @@ public class BMPDumper extends PronghornStage {
 				requestShutdown();
 			}
 		}
-	
+		long end = System.nanoTime();
+		time = time + end - start;
 	}
 	
 	/*public static void main(String[] args) {

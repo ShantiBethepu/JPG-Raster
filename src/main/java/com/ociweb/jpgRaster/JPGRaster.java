@@ -1,5 +1,7 @@
 package com.ociweb.jpgRaster;
 
+import java.util.concurrent.TimeUnit;
+
 import com.ociweb.pronghorn.pipe.Pipe;
 import com.ociweb.pronghorn.stage.scheduling.GraphManager;
 import com.ociweb.pronghorn.stage.scheduling.StageScheduler;
@@ -66,10 +68,10 @@ public class JPGRaster {
 		Pipe<JPGSchema> pipe4 = JPGSchema.instance.newPipe(500, 200);
 		
 		JPGScanner scanner = new JPGScanner(gm, pipe1);
-		new InverseQuantizer(gm, pipe1, pipe2);
-		new InverseDCT(gm, pipe2, pipe3);
-		new YCbCrToRGB(gm, pipe3, pipe4);
-		new BMPDumper(gm, pipe4, System.nanoTime());
+		InverseQuantizer inverseQuantizer = new InverseQuantizer(gm, pipe1, pipe2);
+		InverseDCT inverseDCT = new InverseDCT(gm, pipe2, pipe3);
+		YCbCrToRGB yCbCr = new YCbCrToRGB(gm, pipe3, pipe4);
+		BMPDumper bmpDumper = new BMPDumper(gm, pipe4, System.nanoTime(), scanner, inverseQuantizer, inverseDCT, yCbCr);
 		
 //		new ConsoleJSONDumpStage<JPGSchema>(gm, pipe4);
 		

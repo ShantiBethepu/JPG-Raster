@@ -20,10 +20,13 @@ public class YCbCrToRGB extends PronghornStage {
 	MCU mcu = new MCU();
 	static byte[] rgb = new byte[3];
 	
+	long time;
+	
 	protected YCbCrToRGB(GraphManager graphManager, Pipe<JPGSchema> input, Pipe<JPGSchema> output) {
 		super(graphManager, input, output);
 		this.input = input;
 		this.output = output;
+		this.time = 0;
 	}
 
 	private static byte[] convertToRGB(short Y, short Cb, short Cr) {
@@ -56,6 +59,7 @@ public class YCbCrToRGB extends PronghornStage {
 
 	@Override
 	public void run() {
+		long start = System.nanoTime();
 		while (PipeWriter.hasRoomForWrite(output) && PipeReader.tryReadFragment(input)) {
 			
 			int msgIdx = PipeReader.getMsgIdx(input);
@@ -148,6 +152,8 @@ public class YCbCrToRGB extends PronghornStage {
 				requestShutdown();
 			}
 		}
+		long end = System.nanoTime();
+		time = time + end - start;
 	}
 	
 	/*public static void main(String[] args) {

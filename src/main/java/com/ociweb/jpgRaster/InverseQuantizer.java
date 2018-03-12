@@ -20,17 +20,20 @@ public class InverseQuantizer extends PronghornStage {
 	Header header;
 	MCU mcu = new MCU();
 	
+	long time;
+	
 	protected InverseQuantizer(GraphManager graphManager, Pipe<JPGSchema> input, Pipe<JPGSchema> output) {
 		super(graphManager, input, output);
 		this.input = input;
 		this.output = output;
+		this.time = 0;
 	}
 	
 	private static void dequantizeMCU(short[] MCU, QuantizationTable table) {
 
 		for (int i = 0; i < MCU.length; ++i) {
 			// type casting is unsafe for 16-bit precision quantization tables
-			MCU[i] = (short)(MCU[i] * table.table[i]);
+			MCU[JPG.zigZagMap[i]] = (short)(MCU[JPG.zigZagMap[i]] * table.table[i]);
 		}
 	}
 	
@@ -43,6 +46,7 @@ public class InverseQuantizer extends PronghornStage {
 
 	@Override
 	public void run() {
+		long start = System.nanoTime();
 		while (PipeWriter.hasRoomForWrite(output) && PipeReader.tryReadFragment(input)) {
 			
 			int msgIdx = PipeReader.getMsgIdx(input);
@@ -170,5 +174,7 @@ public class InverseQuantizer extends PronghornStage {
 				requestShutdown();
 			}
 		}
+		long end = System.nanoTime();
+		time = time + end - start;
 	}
 }

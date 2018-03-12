@@ -27,10 +27,12 @@ public class JPGScanner extends PronghornStage {
 	int numProcessed = 0;
 	
 	MCU mcu = new MCU();
+	long time;
 	
 	protected JPGScanner(GraphManager graphManager, Pipe<JPGSchema> output) {
 		super(graphManager, NONE, output);
 		this.output = output;
+		this.time = 0;
 	}
 	
 	public static Header ReadJPG(String filename) throws IOException {
@@ -461,6 +463,7 @@ public class JPGScanner extends PronghornStage {
 
 	@Override
 	public void run() {
+		long start = System.nanoTime();
 		while (PipeWriter.hasRoomForWrite(output) && numProcessed < numMCUs) {
 			if (HuffmanDecoder.decodeHuffmanData(mcu)) {
 				// write mcu to pipe
@@ -576,6 +579,8 @@ public class JPGScanner extends PronghornStage {
 				System.err.println("Error - Unknown error reading " + file);
 			}
 		}
+		long end = System.nanoTime();
+		time = time + end - start;
 	}
 	
 	/*public static void main(String[] args) {
