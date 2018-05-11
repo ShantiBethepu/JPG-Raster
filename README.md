@@ -47,6 +47,10 @@ pictures/*.jp{e,}g         // all JPGs in pictures/ ending in .jpg or .jpeg
 {first,second}Folder/*.jpg // all JPGs in firstFolder/ and secondFolder/
 
 ```
+For example:
+
+java -jar executablefilename.jar -f picturename.jpg -d c:\Users\directoryofthepicture
+
 Globbing syntax can be used on the filename itself, or any folder along the filepath, or both.
 Filepaths can be absolute or relative.
 Any filepaths that contain spaces must be wrapped in quotes.
